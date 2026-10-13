@@ -150,8 +150,7 @@ services:
 
 ### 2. Start the application
 
-If you are switching from Part 2, stop the old containers first. Make sure you do not need their existing database data before removing them.
-
+If the containers are still running, stop the old containers first.
 ```bash
 docker stop taskflow-app taskflow-db
 ```
