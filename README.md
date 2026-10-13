@@ -180,21 +180,6 @@ Open another terminal and run:
 docker compose ps
 ```
 
-### 5. View application logs
-
-```bash
-docker compose logs app
-```
-
-### 6. Stop the application
-
-Press `Ctrl+C` in the attached terminal, then run:
-
-```bash
-docker compose down
-```
-
-**Note:** This configuration does not define a named database volume. Removing the database container can therefore remove its stored data. A named volume can be added to preserve database data across container recreation.
 
 **What we learned:** Docker Compose simplifies multi-container applications by managing their configuration, networking, startup order, and lifecycle in one place.
 
@@ -225,10 +210,3 @@ docker-demo-day1/
 | Docker Compose   | Defines and manages multiple services together           |
 | Port mapping     | Makes a container service accessible through a host port |
 | Health check     | Checks whether a service is ready to respond             |
-
-## Next Steps
-
-* Add a named volume to persist PostgreSQL data.
-* Explore environment variables and `.env` files.
-* Learn about Docker Compose service dependencies and health checks.
-* Learn how to rebuild and update application containers.
