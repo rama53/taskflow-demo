@@ -210,3 +210,4 @@ docker-demo-day1/
 | Docker Compose   | Defines and manages multiple services together           |
 | Port mapping     | Makes a container service accessible through a host port |
 | Health check     | Checks whether a service is ready to respond             |
+# Part 4: AWS deployment
