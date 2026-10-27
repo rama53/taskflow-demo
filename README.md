@@ -156,7 +156,6 @@ services:
 
 networks:
   taskflow-network:
-    driver: bridge
 ```
 
 ### 2. Start the application
