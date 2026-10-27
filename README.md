@@ -121,6 +121,9 @@ Docker Compose lets us define and manage multiple services using one YAML file i
 
 Create this file in the project root, next to the Dockerfile:
 
+
+
+
 ```yaml
 services:
   app:
@@ -132,6 +135,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - taskflow-network
 
   db:
     image: postgres:16
@@ -146,6 +151,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - taskflow-network
+
+networks:
+  taskflow-network:
+    driver: bridge
 ```
 
 ### 2. Start the application
