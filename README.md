@@ -220,4 +220,182 @@ docker-demo-day1/
 | Docker Compose   | Defines and manages multiple services together           |
 | Port mapping     | Makes a container service accessible through a host port |
 | Health check     | Checks whether a service is ready to respond             |
-# Part 4: AWS deployment
+# Part 4: Deploy TaskFlow on AWS EC2
+
+This walkthrough runs Flask and PostgreSQL in Docker on one EC2 instance. It is a learning deployment using Flask's development server over HTTP. Use a production WSGI server, HTTPS, and managed secrets before hosting real users or sensitive data.
+
+## 1. Create an EC2 instance
+
+In the AWS Console, select your region, then open **EC2 → Instances → Launch instances**.
+
+* **Name:** `taskflow-server`
+* **AMI:** Ubuntu Server 24.04 LTS, **64-bit x86**
+* **Instance type:** `t3.micro` for this small demo; check current regional pricing and your account's free-tier eligibility.
+* **Key pair:** Create or select an RSA key pair. Download the `.pem` file and keep it private; AWS does not let you download it again.
+* **Network:** Select a VPC and a public subnet with an internet gateway route. Enable **Auto-assign public IP**. A default VPC normally provides these settings.
+* **Storage:** 8 GiB gp3 is enough to start. Keep encryption enabled.
+
+Create a security group with these inbound rules:
+
+| Type | Port | Source | Purpose |
+| --- | --- | --- | --- |
+| SSH | 22 | My IP | Connect from your computer |
+| Custom TCP | 5000 | My IP | Open the demo application from your computer |
+
+Keep the default outbound access so the instance can install packages and download images. **Do not add an inbound rule for PostgreSQL port 5432.** If your public IP changes, update both inbound rules. Allowing application access only from your IP keeps this demo private to you.
+
+Click **Launch instance**. Wait until the instance is running and its status checks pass. Copy its **Public IPv4 address**.
+
+## 2. Connect to the server
+
+On your computer, open a terminal in the directory containing your downloaded key. Replace the example key name and `EC2_PUBLIC_IP` below:
+
+```bash
+chmod 400 taskflow-key.pem
+ssh -i taskflow-key.pem ubuntu@EC2_PUBLIC_IP
+```
+
+On Windows, use OpenSSH in PowerShell or follow the instance's **Connect → SSH client** instructions to restrict key-file permissions. The Ubuntu AMI uses the username `ubuntu`.
+
+All commands below run **inside the SSH session on EC2** unless stated otherwise.
+
+## 3. Install Docker, Compose, and Git
+
+Use Ubuntu's package repositories:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2 git curl
+sudo systemctl enable --now docker
+sudo docker version
+sudo docker compose version
+```
+
+These instructions use `sudo docker`, so adding your login user to the Docker group is unnecessary.
+
+## 4. Download the application
+
+```bash
+git clone https://github.com/rama53/taskflow-demo.git
+cd taskflow-demo
+```
+
+If the repository is private, use your organization's supported Git authentication or securely copy the checkout from your computer. Never put access tokens in clone URLs or commit credentials.
+
+## 5. Create the Docker configuration
+
+The repository describes Dockerfile and Compose files as exercises. If you have already created them, review and reuse them; the commands below write those files.
+
+Create the application image definition:
+
+```bash
+cat > Dockerfile <<'EOF'
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py .
+COPY frontend/ ./frontend/
+EXPOSE 5000
+CMD ["python", "app.py"]
+EOF
+```
+
+Create a local environment file with a randomly generated database password. Run this only when `.env` does not already exist; keep the same password when reusing an initialized database volume.
+
+```bash
+if [ ! -e .env ]; then
+  (umask 077; python3 -c 'import secrets; print("POSTGRES_PASSWORD=" + secrets.token_hex(24))' > .env)
+fi
+```
+
+Keep `.env` private and out of Git. To exclude it locally without changing the repository's shared ignore rules:
+
+```bash
+grep -qxF '/.env' .git/info/exclude || echo '/.env' >> .git/info/exclude
+```
+
+Create the Compose configuration:
+
+```bash
+cat > compose.yaml <<'EOF'
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://taskflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/taskflow
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: taskflow
+    volumes:
+      - taskflow-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskflow -d taskflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  taskflow-data:
+EOF
+```
+
+Compose gives the services a shared network. Flask connects to PostgreSQL using the service name `db`. The database has no published host port, and the named volume retains tasks when containers are recreated. This volume is local storage, not a backup.
+
+## 6. Start and verify the application
+
+```bash
+sudo docker compose up -d --build
+sudo docker compose ps
+sudo docker compose logs --tail=50 app db
+curl --fail http://localhost:5000/api/tasks
+```
+
+The first build can take several minutes. Confirm the database is healthy and the app is running. On a new database, the API returns `[]`.
+
+On **your computer**, open:
+
+```text
+http://EC2_PUBLIC_IP:5000
+```
+
+Use **HTTP**, and include port **5000**: the current frontend sends API requests to that port. Add a task, click its title to complete it, refresh to confirm it persists, and click **remove** to delete it.
+
+If the page does not load:
+
+* Confirm you used the instance's current public IP and port 5000.
+* Check the security group's port 5000 source matches your computer's current public IP.
+* Run the local `curl` check above. If that fails, inspect `sudo docker compose logs --tail=100 app db`.
+* If SSH also fails, check the port 22 rule, username, key pair, public subnet route, and instance status checks.
+* If the database reports a password mismatch, check whether `.env` was changed after the volume was initialized. Restore the original password or deliberately rotate the database role's password; editing `.env` alone does not update an existing database.
+
+## 7. Update, stop, and clean up
+
+To deploy later application changes, from `~/taskflow-demo`:
+
+```bash
+git pull --ff-only
+sudo docker compose up -d --build
+sudo docker compose ps
+```
+
+To stop and remove the containers while retaining database data:
+
+```bash
+sudo docker compose down
+```
+
+Start them again with `sudo docker compose up -d`. Docker starts automatically after a reboot, and the configured restart policies restart existing containers.
+
+When finished with the demo, **terminate the EC2 instance** in the AWS Console. Termination is destructive: back up any data you need first. Review and delete any remaining EBS volumes, snapshots, or Elastic IP allocations that you no longer need. Stopping an instance does not remove its storage charges, and public IPv4 addresses can incur charges. The auto-assigned public IP can change after a stop/start.
