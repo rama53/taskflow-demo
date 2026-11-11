@@ -232,8 +232,6 @@ In the AWS Console, select your region, then open **EC2 → Instances → Launch
 * **AMI:** Ubuntu Server 24.04 LTS, **64-bit x86**
 * **Instance type:** `t3.micro` for this small demo; check current regional pricing and your account's free-tier eligibility.
 * **Key pair:** Create an RSA key pair. Download the `.pem` file and keep it private; AWS does not let you download it again.
-* **Network:** Select a VPC and a public subnet with an internet gateway route. Enable **Auto-assign public IP**. A default VPC normally provides these settings.
-* **Storage:** 8 GiB gp3 is enough to start. Keep encryption enabled.
 
 Create a security group with these inbound rules:
 
