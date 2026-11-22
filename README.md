@@ -191,6 +191,71 @@ docker compose ps
 ```
 
 
+### 5. Confirm the tasks disappear after recreating the containers
+
+Use a disposable Part 3 database for this exercise. Add a few test tasks in
+the app and refresh the page to confirm they were saved. Then run these
+commands from the project directory:
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+Once the app is running again, refresh http://localhost:5000. The task list
+should be empty. PostgreSQL 16 creates an anonymous volume for its data
+directory when you omit a mount. After `docker compose down`, the replacement
+database container gets a new anonymous volume. With `docker compose stop`
+and `docker compose start`, Compose reuses the same containers and mounts.
+
+### 6. Keep tasks with a named volume
+
+A named volume gives PostgreSQL a stable place to store its data across container
+recreations. For the `postgres:16` image used here, mount it at
+`/var/lib/postgresql/data`.
+
+In the `compose.yaml` from Part 3, add this under the existing `db` service:
+
+```yaml
+    volumes:
+      - taskflow-data:/var/lib/postgresql/data
+```
+
+Declare the named volume at the top level of the same file, alongside
+`services` and `networks`:
+
+```yaml
+volumes:
+  taskflow-data:
+```
+
+The left side of the mount is the Docker volume name. The right side is the
+directory PostgreSQL writes to inside the container. Compose creates the volume
+on first use. If you previously ran PostgreSQL
+without this named volume, switching mounts starts with a fresh database.
+Export any tasks you want to keep from the old database before switching.
+
+To verify that tasks survive container replacement, repeat the exercise with the named volume.
+
+1. Run `docker compose up -d` to apply the new mount.
+2. Open http://localhost:5000 and add a task.
+3. From the same project directory, run:
+
+   ```bash
+   docker compose down
+   docker compose up -d
+   ```
+
+4. Refresh the app and check that the task is still there.
+5. Run `docker volume ls`. Compose normally prefixes the volume name with the
+   project name, so look for a name such as `taskflow-demo_taskflow-data`.
+
+`docker compose down` keeps the named volume. Running `docker compose down -v` removes it
+and deletes the database stored in it.
+
+**What we learned:** A named volume lets replacement containers reuse the same
+database files.
+
 **What we learned:** Docker Compose simplifies multi-container applications by managing their configuration, networking, startup order, and lifecycle in one place.
 
 ---
