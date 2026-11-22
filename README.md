@@ -193,8 +193,7 @@ docker compose ps
 
 ### 5. Confirm the tasks disappear after recreating the containers
 
-Use a disposable Part 3 database for this exercise. Add a few test tasks in
-the app and refresh the page to confirm they were saved. Then run these
+Add a few test tasks in the app and refresh the page to confirm they were saved. Then run these
 commands from the project directory:
 
 ```bash
@@ -229,32 +228,11 @@ volumes:
   taskflow-data:
 ```
 
-The left side of the mount is the Docker volume name. The right side is the
-directory PostgreSQL writes to inside the container. Compose creates the volume
-on first use. If you previously ran PostgreSQL
-without this named volume, switching mounts starts with a fresh database.
-Export any tasks you want to keep from the old database before switching.
-
 To verify that tasks survive container replacement, repeat the exercise with the named volume.
 
-1. Run `docker compose up -d` to apply the new mount.
-2. Open http://localhost:5000 and add a task.
-3. From the same project directory, run:
-
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
-
-4. Refresh the app and check that the task is still there.
-5. Run `docker volume ls`. Compose normally prefixes the volume name with the
-   project name, so look for a name such as `taskflow-demo_taskflow-data`.
 
 `docker compose down` keeps the named volume. Running `docker compose down -v` removes it
 and deletes the database stored in it.
-
-**What we learned:** A named volume lets replacement containers reuse the same
-database files.
 
 **What we learned:** Docker Compose simplifies multi-container applications by managing their configuration, networking, startup order, and lifecycle in one place.
 
